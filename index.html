@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web 3: Scanner Kamera Fix</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <title>Web 3: Scanner Instascan</title>
+    <script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #eef2f3; }
         .box { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        #reader { width: 100%; border-radius: 8px; overflow: hidden; margin: 15px auto; background: #000; }
+        video { width: 100%; border-radius: 8px; background: #000; transform: scaleX(1); }
         #result { font-size: 1.2rem; font-weight: bold; padding: 15px; border-radius: 5px; background: #eee; margin-top: 15px; }
     </style>
 </head>
 <body>
 
 <div class="box">
-    <h2>Web 3: Validasi Scanner Kamera</h2>
+    <h2>Web 3: Scanner (Instascan Engine)</h2>
     <p>Arahkan kamera ke QR Code di Web 2</p>
     
-    <div id="reader"></div>
+    <video id="preview"></video>
     
     <div id="result">Menunggu scan...</div>
 </div>
@@ -27,88 +27,65 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // PENTING: Salin ulang URL Firebase Anda ke sini!
-    const firebaseConfig = { 
-        databaseURL: "https://tiketcom-5d185-default-rtdb.asia-southeast1.firebasedatabase.app/" 
-    };
-    
+    const firebaseConfig = { databaseURL: "https://GANTI_DENGAN_URL_FIREBASE_MU.firebaseio.com" };
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
 
     let isProcessing = false;
 
-    // Fungsi Suara Beep
-    function playBeep() {
-        try {
-            const context = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = context.createOscillator();
-            oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(880, context.currentTime); 
-            oscillator.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.15); 
-        } catch(e) {
-            console.log("Suara terblokir browser sebelum ada interaksi.");
-        }
-    }
+    // Inisialisasi Instascan Scanner
+    let scanner = new Instascan.Scanner({ video: document.getElementById('preview'), mirror: false });
 
-    // Fungsi saat sukses membaca QR
-    function onScanSuccess(decodedText) {
+    // Ketika QR Code Terbaca
+    scanner.addListener('scan', function (content) {
         if (isProcessing) return;
-        isProcessing = true; // Kunci aktif
+        isProcessing = true;
 
-        const hasilScan = decodedText.trim();
+        const hasilScan = content.trim();
         const resultDiv = document.getElementById('result');
-        resultDiv.innerHTML = "Memvalidasi kode...";
+        resultDiv.innerHTML = "Memvalidasi...";
 
-        // Ambil data riwayat dari Firebase
         get(ref(database, 'sistem/riwayat_kode')).then((snapshot) => {
             let matches = false;
-
             if (snapshot.exists()) {
                 const semuaRiwayat = snapshot.val();
                 for (let key in semuaRiwayat) {
-                    if (semuaRiwayat[key].angka === hasilScan) {
-                        matches = true;
-                        break; 
-                    }
+                    if (semuaRiwayat[key].angka === hasilScan) { matches = true; break; }
                 }
             }
 
             if (matches) {
-                playBeep();
                 resultDiv.style.background = "#d4edda"; resultDiv.style.color = "#155724";
                 resultDiv.innerHTML = `✅ VALID: ${hasilScan}`;
-                
-                setTimeout(() => {
-                    alert(`🎉 BERHASIL!\nQR Code cocok dengan database.`);
-                    isProcessing = false; 
-                }, 100);
+                setTimeout(() => { alert(`🎉 BERHASIL!`); isProcessing = false; }, 100);
             } else {
                 resultDiv.style.background = "#f8d7da"; resultDiv.style.color = "#721c24";
                 resultDiv.innerHTML = `❌ GAGAL: ${hasilScan}`;
-                
-                setTimeout(() => {
-                    alert(`🚨 GAGAL!\nQR Code tidak terdaftar.`);
-                    isProcessing = false; 
-                }, 100);
+                setTimeout(() => { alert(`🚨 GAGAL!`); isProcessing = false; }, 100);
             }
-        }).catch((error) => { 
-            alert("Firebase Error: " + error.message);
-            isProcessing = false; 
-        });
-    }
-
-    // Menjalankan Scanner dengan Kotak Responsif
-    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-        fps: 20, 
-        qrbox: function(viewfinderWidth, viewfinderHeight) {
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const qrboxSize = Math.floor(minEdge * 0.75);
-            return { width: qrboxSize, height: qrboxSize };
-        },
-        rememberLastUsedCamera: true
+        }).catch(() => { isProcessing = false; });
     });
-    
-    html5QrcodeScanner.render(onScanSuccess, (err) => {});
-</script>
 
+    // Menyalakan Kamera Belakang HP secara otomatis
+    Instascan.Camera.getCameras().then(function (cameras) {
+        if (cameras.length > 0) {
+            // Biasanya kamera belakang ada di index terakhir atau index 1 pada HP multi-camera
+            let selectedCamera = cameras[cameras.length - 1]; 
+            
+            // Cari spesifik jika ada kamera dengan nama 'back'
+            for(let i=0; i<cameras.length; i++){
+                if(cameras[i].name.indexOf('back') !== -1){
+                    selectedCamera = cameras[i];
+                    break;
+                }
+            }
+            scanner.start(selectedCamera);
+        } else {
+            alert('Kamera tidak ditemukan.');
+        }
+    }).catch(function (e) {
+        alert("Error kamera: " + e);
+    });
+</script>
 </body>
 </html>
