@@ -85,7 +85,8 @@
 
     let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: { width: 300, height: 300 } });
 
-    html5QrcodeScanner.render(window.onScanSuccess, (err) => {});
+    let qrcodeInstance = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
+
 </script>
 </body>
 </html>
