@@ -3,24 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web 3: Scanner Kamera jsQR</title>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <title>Web 3: Scanner Kamera (QR & Barcode)</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #eef2f3; }
         .box { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        #canvas { width: 100%; border-radius: 8px; background: #000; display: block; margin: 15px auto; }
-        #result { font-size: 1.2rem; font-weight: bold; padding: 15px; border-radius: 5px; background: #eee; margin-top: 15px; }
-        #loading-message { font-size: 1rem; color: #666; margin: 20px 0; }
+        /* Scanner Container */
+        #reader { width: 100%; border-radius: 8px; overflow: hidden; background: #000; margin: 15px auto; }
+        #result { font-size: 1.2rem; font-weight: bold; padding: 15px; border-radius: 5px; background: #eee; margin-top: 15px; transition: all 0.3s ease; }
     </style>
 </head>
 <body>
 
 <div class="box">
     <h2>Web 3: Validasi Scanner Kamera</h2>
-    <p>Arahkan kamera ke QR Code di Web 2</p>
+    <p>Arahkan kamera ke Barcode atau QR Code</p>
     
-    <div id="loading-message">🎥 Menyiapkan akses kamera...</div>
-    <canvas id="canvas" hidden></canvas>
+    <div id="reader"></div>
     
     <div id="result">Menunggu scan...</div>
 </div>
@@ -34,6 +33,99 @@
         databaseURL: "https://GANTI_DENGAN_URL_FIREBASE_MU.firebaseio.com" 
     };
     
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+    let isProcessing = false;
+    const resultDiv = document.getElementById("result");
+
+    function playBeep() {
+        try {
+            const context = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = context.createOscillator();
+            oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(880, context.currentTime); 
+            oscillator.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.15); 
+        } catch(e) {}
+    }
+
+    // Fungsi utama saat Barcode / QR Code berhasil terdeteksi
+    function onScanSuccess(decodedText, decodedResult) {
+        if (isProcessing) return; // Kunci proses agar tidak mendobel jika ter-scan berulang kali
+        
+        isProcessing = true;
+        const hasilScan = decodedText.trim();
+        resultDiv.innerHTML = "Memvalidasi kode...";
+        resultDiv.style.background = "#eee"; resultDiv.style.color = "#000";
+
+        // Hubungkan ke Firebase jalankan pencocokan data
+        get(ref(database, 'sistem/riwayat_kode')).then((snapshot) => {
+            let matches = false;
+
+            if (snapshot.exists()) {
+                const semuaRiwayat = snapshot.val();
+                for (let key in semuaRiwayat) {
+                    if (semuaRiwayat[key].angka === hasilScan) {
+                        matches = true;
+                        break; 
+                    }
+                }
+            }
+
+            if (matches) {
+                playBeep();
+                resultDiv.style.background = "#d4edda"; resultDiv.style.color = "#155724";
+                resultDiv.innerHTML = `✅ VALID: ${hasilScan}`;
+                
+                setTimeout(() => {
+                    alert(`🎉 BERHASIL!\nKode [${hasilScan}] terdaftar & sesuai.`);
+                    isProcessing = false; 
+                }, 200);
+            } else {
+                resultDiv.style.background = "#f8d7da"; resultDiv.style.color = "#721c24";
+                resultDiv.innerHTML = `❌ GAGAL: ${hasilScan}`;
+                
+                setTimeout(() => {
+                    alert(`🚨 GAGAL!\nKode [${hasilScan}] tidak ditemukan.`);
+                    isProcessing = false; 
+                }, 200);
+            }
+        }).catch((err) => { 
+            console.error(err);
+            isProcessing = false; 
+        });
+    }
+
+    function onScanFailure(error) {
+        // Callback ini dipicu setiap frame jika tidak ada kode yang terdeteksi.
+        // Dibiarkan kosong agar tidak memenuhi console log.
+    }
+
+    // Konfigurasi Scanner
+    const html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader", 
+        { 
+            fps: 15, // Kecepatan scanning frame per detik
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+                // Membuat kotak penargetan adaptif (lebar untuk barcode, kotak untuk QR)
+                return {
+                    width: Math.floor(viewfinderWidth * 0.75),
+                    height: Math.floor(viewfinderHeight * 0.45)
+                };
+            },
+            experimentalFeatures: {
+                useBarCodeDetectorIfSupported: true // Menggunakan hardware acceleration jika HP mendukung
+            },
+            rememberLastUsedCamera: true,
+            supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+        },
+        /* verbose= */ false
+    );
+
+    // Jalankan Scanner
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+</script>
+</body>
+</html>
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
 
