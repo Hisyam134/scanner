@@ -28,7 +28,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // PENTING: Masukkan URL Realtime Database Firebase Anda di sini!
     const firebaseConfig = { 
         databaseURL: "https://tiketcom-5d185-default-rtdb.asia-southeast1.firebasedatabase.app/" 
     };
@@ -50,9 +49,17 @@
 
     // Fungsi utama saat Barcode / QR Code berhasil terdeteksi
     function onScanSuccess(decodedText, decodedResult) {
-        if (isProcessing) return; // Kunci proses agar tidak mendobel jika ter-scan berulang kali
+        if (isProcessing) return; 
         
         isProcessing = true;
+
+        // Trik Utama: Pause scanner agar hardware kamera berhenti membaca gambar untuk sementara waktu
+        try {
+            html5QrcodeScanner.pause(true); 
+        } catch (e) {
+            console.log("Gagal menjeda scanner:", e);
+        }
+
         const hasilScan = decodedText.trim();
         resultDiv.innerHTML = "Memvalidasi kode...";
         resultDiv.style.background = "#eee"; resultDiv.style.color = "#000";
@@ -78,7 +85,8 @@
                 
                 setTimeout(() => {
                     alert(`🎉 BERHASIL!\nKode [${hasilScan}] terdaftar & sesuai.`);
-                    isProcessing = false; 
+                    // Lanjutkan pemindaian kembali setelah alert ditutup
+                    bukaKembaliScanner();
                 }, 200);
             } else {
                 resultDiv.style.background = "#f8d7da"; resultDiv.style.color = "#721c24";
@@ -86,17 +94,29 @@
                 
                 setTimeout(() => {
                     alert(`🚨 GAGAL!\nKode [${hasilScan}] tidak ditemukan.`);
-                    isProcessing = false; 
+                    // Lanjutkan pemindaian kembali setelah alert ditutup
+                    bukaKembaliScanner();
                 }, 200);
             }
         }).catch((err) => { 
             console.error(err);
-            isProcessing = false; 
+            bukaKembaliScanner();
         });
     }
 
+    // Fungsi pembantu untuk mengaktifkan kembali scanner setelah jeda
+    function bukaKembaliScanner() {
+        setTimeout(() => {
+            try {
+                html5QrcodeScanner.resume();
+            } catch (e) {
+                console.log("Gagal menjalankan kembali scanner:", e);
+            }
+            isProcessing = false;
+        }, 500); // Diberi delay setengah detik agar kamera tidak langsung menyambar QR yang sama
+    }
+
     function onScanFailure(error) {
-        // Callback ini dipicu setiap frame jika tidak ada kode yang terdeteksi.
         // Dibiarkan kosong agar tidak memenuhi console log.
     }
 
@@ -104,16 +124,15 @@
     const html5QrcodeScanner = new Html5QrcodeScanner(
         "reader", 
         { 
-            fps: 15, // Kecepatan scanning frame per detik
+            fps: 15, 
             qrbox: function(viewfinderWidth, viewfinderHeight) {
-                // Membuat kotak penargetan adaptif (lebar untuk barcode, kotak untuk QR)
                 return {
                     width: Math.floor(viewfinderWidth * 0.75),
                     height: Math.floor(viewfinderHeight * 0.45)
                 };
             },
             experimentalFeatures: {
-                useBarCodeDetectorIfSupported: true // Menggunakan hardware acceleration jika HP mendukung
+                useBarCodeDetectorIfSupported: true 
             },
             rememberLastUsedCamera: true,
             supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
