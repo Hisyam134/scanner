@@ -22,15 +22,16 @@
     <div id="result">Menunggu scan...</div>
 </div>
 
-<script type="module">
+    <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    const firebaseConfig = { databaseURL: "https://tiketcom-5d185-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+    const firebaseConfig = { databaseURL: "https://GANTI_DENGAN_URL_FIREBASE_MU.firebaseio.com" };
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
 
-    let isProcessing = false;
+    // 1. PERBAIKAN: Variabel pengunci HARUS dideklarasikan di sini agar tidak error
+    let isProcessing = false; 
 
     function playBeep() {
         const context = new (window.AudioContext || window.webkitAudioContext)();
@@ -41,23 +42,21 @@
 
     window.onScanSuccess = function(decodedText) {
         if (isProcessing) return;
-        isProcessing = true;
+        isProcessing = true; // Kunci diaktifkan
 
         const hasilScan = decodedText.trim();
         const resultDiv = document.getElementById('result');
 
-        // Tarik list riwayat terakhir dari Firebase
         get(ref(database, 'sistem/riwayat_kode')).then((snapshot) => {
             let matches = false;
 
             if (snapshot.exists()) {
                 const semuaRiwayat = snapshot.val();
                 
-                // Looping / cek satu per satu apakah hasil scan ada di salah satu dari 150 data riwayat
                 for (let key in semuaRiwayat) {
                     if (semuaRiwayat[key].angka === hasilScan) {
                         matches = true;
-                        break; // Jika ketemu, hentikan looping
+                        break; 
                     }
                 }
             }
@@ -69,7 +68,7 @@
                 
                 setTimeout(() => {
                     alert(`🎉 BERHASIL!\nQR Code ini COCOK dengan salah satu dari 150 kode aktif.`);
-                    isProcessing = false;
+                    isProcessing = false; // Kunci dibuka kembali setelah klik OK
                 }, 100);
             } else {
                 resultDiv.style.background = "#f8d7da"; resultDiv.style.color = "#721c24";
@@ -77,14 +76,24 @@
                 
                 setTimeout(() => {
                     alert(`🚨 GAGAL!\nQR Code tidak ditemukan dalam 150 data terakhir.`);
-                    isProcessing = false;
+                    isProcessing = false; // Kunci dibuka kembali setelah klik OK
                 }, 100);
             }
-        }).catch(() => { isProcessing = false; });
+        }).catch((error) => { 
+            console.error(error);
+            isProcessing = false; // Jika network error, kunci wajib dibuka lagi
+        });
     }
 
-    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: { width: 300, height: 300 } });
-
+    // 2. PERBAIKAN: Membuat scanner lebih sensitif, responsif, dan performa naik (FPS 20)
+    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+        fps: 20, 
+        qrbox: { width: 280, height: 280 },
+        experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true // Menggunakan detektor bawaan chip HP (jika support)
+        }
+    });
+    
     html5QrcodeScanner.render(window.onScanSuccess, (err) => {});
 </script>
 </body>
