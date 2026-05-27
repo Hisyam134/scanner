@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web 3: Scanner Kamera</title>
+    <title>Web 3: Scanner Kamera Fix</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #eef2f3; }
         .box { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         #reader { width: 100%; border-radius: 8px; overflow: hidden; margin: 15px auto; background: #000; }
         #result { font-size: 1.2rem; font-weight: bold; padding: 15px; border-radius: 5px; background: #eee; margin-top: 15px; }
-        #debug-log { font-size: 0.8rem; color: red; margin-top: 10px; text-align: left; background: #fdf2f2; padding: 10px; border-radius: 5px; display: none; }
     </style>
 </head>
 <body>
@@ -22,31 +21,21 @@
     <div id="reader"></div>
     
     <div id="result">Menunggu scan...</div>
-    
-    <div id="debug-log"></div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // PENTING: Ganti URL di bawah ini dengan URL Firebase Anda sendiri!
+    // PENTING: Salin ulang URL Firebase Anda ke sini!
     const firebaseConfig = { 
-        databaseURL: "https://GANTI_DENGAN_URL_FIREBASE_MU.firebaseio.com" 
+        databaseURL: "https://tiketcom-5d185-default-rtdb.asia-southeast1.firebasedatabase.app/" 
     };
     
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
 
-    // Kunci proses scan agar tidak spam pop-up
     let isProcessing = false;
-
-    // Fungsi Pembantu cetak error ke layar HP
-    function tampilkanErrorLayar(pesan) {
-        const logDiv = document.getElementById('debug-log');
-        logDiv.style.display = "block";
-        logDiv.innerHTML += `<div>⚠️ ${pesan}</div>`;
-    }
 
     // Fungsi Suara Beep
     function playBeep() {
@@ -56,11 +45,11 @@
             oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(880, context.currentTime); 
             oscillator.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.15); 
         } catch(e) {
-            console.log("Suara diblokir browser sebelum ada ketukan layar.");
+            console.log("Suara terblokir browser sebelum ada interaksi.");
         }
     }
 
-    // FUNGSI UTAMA KETIKA QR CODE BERHASIL TERDETEKSI
+    // Fungsi saat sukses membaca QR
     function onScanSuccess(decodedText) {
         if (isProcessing) return;
         isProcessing = true; // Kunci aktif
@@ -69,13 +58,12 @@
         const resultDiv = document.getElementById('result');
         resultDiv.innerHTML = "Memvalidasi kode...";
 
-        // Ambil data dari Firebase
+        // Ambil data riwayat dari Firebase
         get(ref(database, 'sistem/riwayat_kode')).then((snapshot) => {
             let matches = false;
 
             if (snapshot.exists()) {
                 const semuaRiwayat = snapshot.val();
-                // Cari data di dalam 150 list
                 for (let key in semuaRiwayat) {
                     if (semuaRiwayat[key].angka === hasilScan) {
                         matches = true;
@@ -90,110 +78,37 @@
                 resultDiv.innerHTML = `✅ VALID: ${hasilScan}`;
                 
                 setTimeout(() => {
-                    alert(`🎉 BERHASIL!\nQR Code COCOK dengan database.`);
-                    isProcessing = false; // Kunci dibuka setelah klik OK
+                    alert(`🎉 BERHASIL!\nQR Code cocok dengan database.`);
+                    isProcessing = false; 
                 }, 100);
             } else {
                 resultDiv.style.background = "#f8d7da"; resultDiv.style.color = "#721c24";
                 resultDiv.innerHTML = `❌ GAGAL: ${hasilScan}`;
                 
                 setTimeout(() => {
-                    alert(`🚨 GAGAL!\nQR Code tidak terdaftar dalam 150 data terakhir.`);
-                    isProcessing = false; // Kunci dibuka setelah klik OK
+                    alert(`🚨 GAGAL!\nQR Code tidak terdaftar.`);
+                    isProcessing = false; 
                 }, 100);
             }
         }).catch((error) => { 
-            tampilkanErrorLayar("Firebase Error: " + error.message);
-            resultDiv.innerHTML = "Error database!";
+            alert("Firebase Error: " + error.message);
             isProcessing = false; 
         });
     }
 
-    // KONFIGURASI SCANNER (Dioptimalkan agar sangat sensitif)
-    setTimeout(() => {
-        try {
-            let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-                fps: 20, 
-                qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    // Membuat kotak scan dinamis mengikuti ukuran HP biar tidak kekecilan
-                    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                    const qrboxSize = Math.floor(minEdge * 0.7);
-                    return { width: qrboxSize, height: qrboxSize };
-                },
-                rememberLastUsedCamera: true
-            });
-            
-            html5QrcodeScanner.render(onScanSuccess, (err) => {
-                // Di sini menangkap error jika kamera gagal membaca pola (abaikan agar tidak lag)
-            });
-        } catch (e) {
-            tampilkanErrorLayar("Scanner Init Error: " + e.message);
-        }
-    }, 500);
-</script>
-</body>
-</html>
-        const context = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = context.createOscillator();
-        oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(880, context.currentTime); 
-        oscillator.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.15); 
-    }
-
-    window.onScanSuccess = function(decodedText) {
-        if (isProcessing) return;
-        isProcessing = true; // Kunci diaktifkan
-
-        const hasilScan = decodedText.trim();
-        const resultDiv = document.getElementById('result');
-
-        get(ref(database, 'sistem/riwayat_kode')).then((snapshot) => {
-            let matches = false;
-
-            if (snapshot.exists()) {
-                const semuaRiwayat = snapshot.val();
-                
-                for (let key in semuaRiwayat) {
-                    if (semuaRiwayat[key].angka === hasilScan) {
-                        matches = true;
-                        break; 
-                    }
-                }
-            }
-
-            if (matches) {
-                playBeep();
-                resultDiv.style.background = "#d4edda"; resultDiv.style.color = "#155724";
-                resultDiv.innerHTML = `✅ VALID: ${hasilScan} (Terdaftar di riwayat)`;
-                
-                setTimeout(() => {
-                    alert(`🎉 BERHASIL!\nQR Code ini COCOK dengan salah satu dari 150 kode aktif.`);
-                    isProcessing = false; // Kunci dibuka kembali setelah klik OK
-                }, 100);
-            } else {
-                resultDiv.style.background = "#f8d7da"; resultDiv.style.color = "#721c24";
-                resultDiv.innerHTML = `❌ GAGAL: ${hasilScan} (Tidak Dikenal)`;
-                
-                setTimeout(() => {
-                    alert(`🚨 GAGAL!\nQR Code tidak ditemukan dalam 150 data terakhir.`);
-                    isProcessing = false; // Kunci dibuka kembali setelah klik OK
-                }, 100);
-            }
-        }).catch((error) => { 
-            console.error(error);
-            isProcessing = false; // Jika network error, kunci wajib dibuka lagi
-        });
-    }
-
-    // 2. PERBAIKAN: Membuat scanner lebih sensitif, responsif, dan performa naik (FPS 20)
+    // Menjalankan Scanner dengan Kotak Responsif
     let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
         fps: 20, 
-        qrbox: { width: 280, height: 280 },
-        experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true // Menggunakan detektor bawaan chip HP (jika support)
-        }
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const qrboxSize = Math.floor(minEdge * 0.75);
+            return { width: qrboxSize, height: qrboxSize };
+        },
+        rememberLastUsedCamera: true
     });
     
-    html5QrcodeScanner.render(window.onScanSuccess, (err) => {});
+    html5QrcodeScanner.render(onScanSuccess, (err) => {});
 </script>
+
 </body>
 </html>
