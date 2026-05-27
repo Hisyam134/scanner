@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web 3: Scanner Kamera Multi-Validasi</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #eef2f3; }
+        .box { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        #reader { width: 100%; border-radius: 8px; overflow: hidden; margin: 15px auto; }
+        #result { font-size: 1.2rem; font-weight: bold; padding: 15px; border-radius: 5px; background: #eee; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h2>Web 3: Validasi Riwayat 150 QR</h2>
+    <p>Scan QR Code lama maupun baru (Maksimal 150 kupon terakhir)</p>
+    
+    <div id="reader"></div>
+    <div id="result">Menunggu scan...</div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    const firebaseConfig = { databaseURL: "https://tiketcom-5d185-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+    let isProcessing = false;
+
+    function playBeep() {
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = context.createOscillator();
+        oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(880, context.currentTime); 
+        oscillator.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.15); 
+    }
+
+    window.onScanSuccess = function(decodedText) {
+        if (isProcessing) return;
+        isProcessing = true;
+
+        const hasilScan = decodedText.trim();
+        const resultDiv = document.getElementById('result');
+
+        // Tarik list riwayat terakhir dari Firebase
+        get(ref(database, 'sistem/riwayat_kode')).then((snapshot) => {
+            let matches = false;
+
+            if (snapshot.exists()) {
+                const semuaRiwayat = snapshot.val();
+                
+                // Looping / cek satu per satu apakah hasil scan ada di salah satu dari 150 data riwayat
+                for (let key in semuaRiwayat) {
+                    if (semuaRiwayat[key].angka === hasilScan) {
+                        matches = true;
+                        break; // Jika ketemu, hentikan looping
+                    }
+                }
+            }
+
+            if (matches) {
+                playBeep();
+                resultDiv.style.background = "#d4edda"; resultDiv.style.color = "#155724";
+                resultDiv.innerHTML = `✅ VALID: ${hasilScan} (Terdaftar di riwayat)`;
+                
+                setTimeout(() => {
+                    alert(`🎉 BERHASIL!\nQR Code ini COCOK dengan salah satu dari 150 kode aktif.`);
+                    isProcessing = false;
+                }, 100);
+            } else {
+                resultDiv.style.background = "#f8d7da"; resultDiv.style.color = "#721c24";
+                resultDiv.innerHTML = `❌ GAGAL: ${hasilScan} (Tidak Dikenal)`;
+                
+                setTimeout(() => {
+                    alert(`🚨 GAGAL!\nQR Code tidak ditemukan dalam 150 data terakhir.`);
+                    isProcessing = false;
+                }, 100);
+            }
+        }).catch(() => { isProcessing = false; });
+    }
+
+    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+    html5QrcodeScanner.render(window.onScanSuccess, (err) => {});
+</script>
+</body>
+</html>
